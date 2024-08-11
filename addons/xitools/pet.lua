@@ -123,7 +123,7 @@ end
 local function DrawPet(pet, options)
     local player = AshitaCore:GetMemoryManager():GetPlayer()
 
-    DrawHeader(pet.Name, ('%.1fm'):format(math.sqrt(pet.Distance)), options)
+    DrawHeader(pet.Name, ('%.1f'):format(math.sqrt(pet.Distance)), options)
     DrawHpp(pet.HPPercent, 100)
     DrawMpp(player:GetPetMPPercent(), 100)
     DrawTp(player:GetPetTP(), 3000)

@@ -166,7 +166,9 @@ end
 local function GetMember(i, window, target, party, stal)
     local serverId = party:GetMemberServerId(i)
     local buffs = FilterBuffs(GetBuffs(party, serverId))
-
+	local entityIndex = party:GetMemberTargetIndex(i);
+    local entMgr = AshitaCore:GetMemoryManager():GetEntity();
+	
     return {
         entity = GetEntity(party:GetMemberTargetIndex(i)),
         name = party:GetMemberName(i),
@@ -193,7 +195,9 @@ local function GetMember(i, window, target, party, stal)
         windowName = window.name,
         windowSize = window.size,
         windowPos = window.pos,
-        statusIds = buffs
+        statusIds = buffs,
+		distance = math.sqrt(entMgr:GetDistance(entityIndex)),
+		renderFlags = entMgr:GetRenderFlags0(entityIndex)
     }
 end
 
@@ -205,8 +209,7 @@ local function DrawDot(pos, color)
 end
 
 ---@param player PartyMember
----@param showDist boolean
-local function DrawName(player, showDist)
+local function DrawName(player)
     -- the "party status dots" are intended to be a prefix to the player's name,
     -- so we want any target indicators to come beforehand.
     if player.isSubTarget or player.isPartyTarget then
@@ -248,6 +251,13 @@ local function DrawName(player, showDist)
     imgui.Text(player.name)
     imgui.PopStyleColor()
 
+	--Distance
+	if (player.distance ~= nil and (bit.band(player.renderFlags, 0x200) == 0x200) and (bit.band(player.renderFlags, 0x4000) == 0)) then
+		imgui.SameLine()
+		imgui.SetCursorPosX(150)
+		imgui.Text(string.format('%.1f', player.distance))
+	end
+
     -- we can use the top right corner for more cool stuff, but imgui doesn't do
     -- right-alignment (as far as i'm aware). again, we must do it ourselves:
     -- calculate the width of our displayed item, and offset it from the width
@@ -257,13 +267,6 @@ local function DrawName(player, showDist)
         imgui.SameLine()
         imgui.SetCursorPosX((player.windowSize[1] * Scale) - (80 + 10) * Scale)
         ui.DrawBar2(castbar:GetPercent() * 100, 100, ui.Scale({ 80, 8 }, Scale), '')
-    elseif showDist and player.entity then
-        local dist = string.format('%.1fm', math.sqrt(player.entity.Distance))
-        local width = imgui.CalcTextSize(dist) + ui.Styles.WindowPadding[1] * Scale
-
-        imgui.SameLine()
-        imgui.SetCursorPosX((player.windowSize[1] * Scale) - width)
-        imgui.Text(dist)
     elseif player.job ~= nil then
         local jobStr = ''
         if player.sub ~= nil then
@@ -351,9 +354,8 @@ local function DrawBuffs(player)
 end
 
 ---@param player PartyMember
----@param showDist boolean
-local function DrawPartyMember(player, showDist)
-    DrawName(player, showDist)
+local function DrawPartyMember(player)
+    DrawName(player)
 
     if player.isInZone then
         DrawHp(player)
@@ -384,7 +386,6 @@ local function DrawAlliance(alliance, gOptions)
         local target = AshitaCore:GetMemoryManager():GetTarget()
         local party = AshitaCore:GetMemoryManager():GetParty()
         local stal = ffxi.GetStPartyIndex()
-        local showDist = stal ~= nil or IsSubTargetActive(target)
 
         for _, getMember in pairs(Alliances[alliance.name]) do
             local person = getMember(target, party, stal)
@@ -393,7 +394,7 @@ local function DrawAlliance(alliance, gOptions)
                 if alliance.isCompact[1] then
                     DrawCompactPartyMember(person)
                 else
-                    DrawPartyMember(person, showDist)
+                    DrawPartyMember(person)
                 end
             end
         end

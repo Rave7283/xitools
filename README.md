@@ -1,5 +1,7 @@
 This for has the following changes
 - Distance is always shown in "us" in between the character name and job
+- Removed skill level row from fishe
+- Reworded phrase from fishe
 
 # xitools
 a collection of addons (and maybe some plugins) for Ashita v4 that mousseng made.

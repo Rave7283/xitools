@@ -160,13 +160,13 @@ local fishMessages = {
     [0x1D] = 'GOLDFISH_SLIPPED_OFF',
     [0x3F] = 'HURRY_GOLDFISH_WARNING',
     [0x28] = 'WARNING',
-    [0x08] = 'hooked small fish',
-    [0x32] = 'hooked big fish',
-    [0x33] = 'hooked an item',
-    [0x34] = 'hooked a monster',
-    [0x29] = 'good feeling',
-    [0x2A] = 'bad feeling',
-    [0x2B] = 'terrible feeling',
+    [0x08] = 'Hooked: Small Fish',
+    [0x32] = 'Hooked: Big Fish',
+    [0x33] = 'Hooked: Item',
+    [0x34] = 'Hooked: Monster',
+    [0x29] = 'Good Feeling',
+    [0x2A] = 'Bad Feeling',
+    [0x2B] = 'Terrible Feeling',
     [0x2C] = 'skill issue',
     [0x2D] = 'big skill issue',
     [0x2E] = 'yuge skill issue',
@@ -247,7 +247,7 @@ end
 local function DrawCurrent()
     if currentLine.hook then
         imgui.Separator()
-        if currentLine.hook:startswith('snagged') then
+        if currentLine.hook:startswith('Hooked') then
             imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.TpBarActive)
             imgui.Text(currentLine.hook)
             imgui.PopStyleColor()
@@ -257,9 +257,9 @@ local function DrawCurrent()
     end
 
     if currentLine.feel then
-        if currentLine.feel == 'good feeling' then
+        if currentLine.feel == 'Good Feeling' then
             imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.StatusGreen)
-        elseif currentLine.feel == 'bad feeling' then
+        elseif currentLine.feel == 'Bad Feeling' then
             imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.Yellow)
         else
             imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.Red)
@@ -274,7 +274,6 @@ local function DrawCurrent()
     local moon = AshitaCore:GetResourceManager():GetString('moonphases', date.moon_phase)
     local day = AshitaCore:GetResourceManager():GetString('days', date.weekday)
 
-    imgui.Separator()
     imgui.Text(('%-15s %2i%%'):format(moon, date.moon_percent))
     imgui.Text(('%-13s %02i:%02i'):format(day, time.h, time.m))
     imgui.Text(('Restock at... %02i:00'):format(poolResets[math.floor(time.h)]))
@@ -358,13 +357,6 @@ local fishe = {
         local player = GetPlayerEntity()
         if player == nil then return end
 
-        -- reset state on zoning in case you get boated
-        if e.id == 0x00A then
-            currentLine.hook = nil
-            currentLine.feel = nil
-            return
-        end
-
         if e.id == 0x027 then
             local msg = packets.inbound.fishCatch.parse(e.data)
             if msg.player == player.ServerId then
@@ -390,7 +382,7 @@ local fishe = {
 
             if realMessage == 0x35 then
                 local fishName = AshitaCore:GetResourceManager():GetItemById(special.param1).Name[1]
-                currentLine.hook = ('snagged %s'):format(fishName)
+                currentLine.hook = ('Hooked: %s'):format(fishName)
             end
         elseif e.id == 0x036 then
             local msg = packets.inbound.npcMessage.parse(e.data)
@@ -422,7 +414,7 @@ local fishe = {
         Scale = gOptions.uiScale[1]
         ui.DrawNormalWindow(options, gOptions, function()
             imgui.SetWindowFontScale(Scale)
-            imgui.Text(('%-13s %5.1f'):format('Fishe', options.skill[1]))
+            --imgui.Text(('%-13s %5.1f'):format('Fishe', options.skill[1]))
             DrawCurrent()
             DrawHaul()
             DrawHistory(options.history)

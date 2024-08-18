@@ -94,11 +94,11 @@ function ui.DrawBar3(cur, max, size, overlay)
     local fraction = cur / max
     local borderColor = ui.Colors.BarBorder
 
-    if max > 0 and fraction <= 0.25 then
+    if max > 0 and fraction < 0.25 then
         borderColor = ui.Colors.Red
-    elseif max > 0 and fraction <= 0.50 then
+    elseif max > 0 and fraction < 0.50 then
         borderColor = ui.Colors.Orange
-    elseif max > 0 and fraction <= 0.75 then
+    elseif max > 0 and fraction < 0.75 then
         borderColor = ui.Colors.Yellow
     end
 

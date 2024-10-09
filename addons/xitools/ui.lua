@@ -100,6 +100,8 @@ function ui.DrawBar3(cur, max, size, overlay)
         borderColor = ui.Colors.Orange
     elseif max > 0 and fraction < 0.75 then
         borderColor = ui.Colors.Yellow
+    else
+        borderColor = ui.Colors.BarBorder
     end
 
     imgui.PushStyleColor(ImGuiCol_FrameBg, ui.Colors.BarBackground)

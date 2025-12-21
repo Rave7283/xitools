@@ -209,7 +209,7 @@ local function DrawDot(pos, color)
 end
 
 ---@param player PartyMember
-local function DrawName(player)
+local function DrawName(player, isMainPt)
     -- the "party status dots" are intended to be a prefix to the player's name,
     -- so we want any target indicators to come beforehand.
     if player.isSubTarget or player.isPartyTarget then
@@ -254,8 +254,23 @@ local function DrawName(player)
 	--Distance
 	if (player.distance ~= nil and (bit.band(player.renderFlags, 0x200) == 0x200) and (bit.band(player.renderFlags, 0x4000) == 0)) then
 		imgui.SameLine()
-		imgui.SetCursorPosX(150)
+        local xOffset = 150
+        if (isMainPt) then
+            xOffset = 220
+        end
+
+		imgui.SetCursorPosX(xOffset)
+
+        if player.distance <= 9.9 then
+            imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.Green)
+        elseif player.distance <= 20.2 then
+            imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.Yellow)
+        else
+            imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.White)
+        end
+
 		imgui.Text(string.format('%.1f', player.distance))
+        imgui.PopStyleColor()
 	end
 
     -- we can use the top right corner for more cool stuff, but imgui doesn't do
@@ -290,19 +305,23 @@ local function DrawZone(player)
 end
 
 ---@param player PartyMember
-local function DrawHp(player)
+local function DrawHp(player, isMainPt)
     local textColor = ui.Colors.White
     local barColor = ui.Colors.HpBar
     local overlay = string.format('%i', player.hp)
 
     imgui.PushStyleColor(ImGuiCol_Text, textColor)
     imgui.PushStyleColor(ImGuiCol_PlotHistogram, barColor)
-    ui.DrawBar3(player.hpp, 100, ui.Scale({ 80, 15 }, Scale), overlay)
+    local barSize = 80
+    if (isMainPt) then
+        barSize = 120
+    end
+    ui.DrawBar3(player.hpp, 100, ui.Scale({ barSize, 15 }, Scale), overlay)
     imgui.PopStyleColor(2)
 end
 
 ---@param player PartyMember
-local function DrawMp(player)
+local function DrawMp(player, isMainPt)
     local textColor = ui.Colors.White
     local barColor = ui.Colors.MpBar
     local overlay = string.format('%i', player.mp)
@@ -310,12 +329,16 @@ local function DrawMp(player)
     imgui.PushStyleColor(ImGuiCol_Text, textColor)
     imgui.PushStyleColor(ImGuiCol_PlotHistogram, barColor)
     imgui.SameLine()
-    ui.DrawBar2(player.mpp, 100, ui.Scale({ 80, 15 }, Scale), overlay)
+    local barSize = 80
+    if (isMainPt) then
+        barSize = 110
+    end
+    ui.DrawBar2(player.mpp, 100, ui.Scale({ barSize, 15 }, Scale), overlay)
     imgui.PopStyleColor(2)
 end
 
 ---@param player PartyMember
-local function DrawTp(player)
+local function DrawTp(player, isMainPt)
     local textColor = ui.Colors.White
     local barColor = ui.Colors.TpBar
     local overlay = string.format('%i', player.tp)
@@ -327,7 +350,11 @@ local function DrawTp(player)
     imgui.PushStyleColor(ImGuiCol_Text, textColor)
     imgui.PushStyleColor(ImGuiCol_PlotHistogram, barColor)
     imgui.SameLine()
-    ui.DrawBar2(player.tp, 3000, ui.Scale({ 80, 15 }, Scale), overlay)
+    local barSize = 80
+    if (isMainPt) then
+        barSize = 110
+    end
+    ui.DrawBar2(player.tp, 3000, ui.Scale({ barSize, 15 }, Scale), overlay)
     imgui.PopStyleColor(2)
 end
 
@@ -353,18 +380,34 @@ local function DrawBuffs(player)
     imgui.PopStyleVar()
 end
 
+local function DrawPadding(height)
+    imgui.NewLine()
+end
+
 ---@param player PartyMember
-local function DrawPartyMember(player)
-    DrawName(player)
+local function DrawPartyMember(player, isMainPt)
+    DrawName(player, isMainPt)
 
     if player.isInZone then
-        DrawHp(player)
-        DrawMp(player)
-        DrawTp(player)
-        DrawBuffs(player)
+        DrawHp(player, isMainPt)
+        DrawMp(player, isMainPt)
+        DrawTp(player, isMainPt)
+        if (isMainPt) then
+            DrawBuffs(player)
+        else
+            imgui.PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0, 7 });
+            imgui.Spacing()
+            imgui.PopStyleVar();
+        end
     else
         DrawZone(player)
+        ---if (isMainPt) then
+        ---    imgui.NewLine()
+        ---end
     end
+    imgui.PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0, 3 });
+    imgui.Spacing()
+    imgui.PopStyleVar();
 end
 
 ---@param player PartyMember
@@ -379,7 +422,7 @@ local function DrawCompactPartyMember(player)
     end
 end
 
-local function DrawAlliance(alliance, gOptions)
+local function DrawAlliance(alliance, gOptions, isMainPt)
     ui.DrawUiWindow(alliance, gOptions, function()
         imgui.SetWindowFontScale(Scale)
 
@@ -394,7 +437,7 @@ local function DrawAlliance(alliance, gOptions)
                 if alliance.isCompact[1] then
                     DrawCompactPartyMember(person)
                 else
-                    DrawPartyMember(person)
+                    DrawPartyMember(person, isMainPt)
                 end
             end
         end
@@ -440,9 +483,9 @@ local us = {
             isCompact = T{ false },
             isVisible = T{ true },
             name = 'xitools.us.1',
-            fullSize = T{ 276, -1 },
+            fullSize = T{ 376, -1 },
             compactSize = T{ -1, -1 },
-            size = T{ 276, -1 },
+            size = T{ 376, -1 },
             pos = T{ 392, 628 },
             flags = bit.bor(ImGuiWindowFlags_NoDecoration),
         },
@@ -520,13 +563,13 @@ local us = {
 
         if (options.hideWhenSolo[1] and alliCount1 > 1)
         or (not options.hideWhenSolo[1] and alliCount1 > 0) then
-            DrawAlliance(options.alliance1, gOptions)
+            DrawAlliance(options.alliance1, gOptions, true)
         end
         if alliCount2 > 0 then
-            DrawAlliance(options.alliance2, gOptions)
+            DrawAlliance(options.alliance2, gOptions, false)
         end
         if alliCount3 > 0 then
-            DrawAlliance(options.alliance3, gOptions)
+            DrawAlliance(options.alliance3, gOptions, false)
         end
     end,
 }

@@ -248,7 +248,7 @@ local function DrawCurrent()
     if currentLine.hook then
         imgui.Separator()
         if currentLine.hook:startswith('Hooked') then
-            imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.TpBarActive)
+            imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.CastingBar)
             imgui.Text(currentLine.hook)
             imgui.PopStyleColor()
         else

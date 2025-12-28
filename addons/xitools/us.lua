@@ -5,6 +5,7 @@ local d3d8 = require('d3d8')
 local d3d8_device = d3d8.get_device()
 local imgui = require('imgui')
 local ui = require('ui')
+local packets = require('utils/packets')
 
 local ffxi = require('utils/ffxi')
 local zones = require('utils/zones')
@@ -13,6 +14,7 @@ local Scale = 1.0
 
 local Textures = { }
 local Alliances = { }
+local PartyCasts = { }
 
 -- notes on PartyMemberFlagMask
 -- bit 0: ? maybe party 2?
@@ -135,7 +137,7 @@ local function GetPlayer(options, target, party, stal)
     return {
         entity = GetEntity(party:GetMemberTargetIndex(0)),
         name = party:GetMemberName(0),
-        showCastbar = options.showCastbar[1],
+        showCastbar = false,
         serverId = serverId,
         isInZone = true,
         isActive = true,
@@ -163,7 +165,7 @@ local function GetPlayer(options, target, party, stal)
 end
 
 ---@return PartyMember
-local function GetMember(i, window, target, party, stal)
+local function GetMember(i, window, options, target, party, stal)
     local serverId = party:GetMemberServerId(i)
     local buffs = FilterBuffs(GetBuffs(party, serverId))
 	local entityIndex = party:GetMemberTargetIndex(i);
@@ -172,7 +174,7 @@ local function GetMember(i, window, target, party, stal)
     return {
         entity = GetEntity(party:GetMemberTargetIndex(i)),
         name = party:GetMemberName(i),
-        showCastbar = false,
+        showCastbar = options.showCastbar[1] and PartyCasts[serverId] ~= nil,
         serverId = serverId,
         isInZone = party:GetMemberZone(i) == party:GetMemberZone(0),
         isActive = party:GetMemberIsActive(i) == 1,
@@ -217,7 +219,7 @@ local function DrawName(player, isMainPt)
         imgui.Text('>')
         imgui.SameLine()
     elseif player.isTarget then
-        imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.TpBarActive)
+        imgui.PushStyleColor(ImGuiCol_Text, ui.Colors.CastingBar)
         imgui.Text('>>')
         imgui.SameLine()
     else
@@ -231,7 +233,7 @@ local function DrawName(player, isMainPt)
     local offsetX = 0
 
     if player.isAllianceLeader then
-        DrawDot({originX + offsetX + 3 * Scale, originY + 6 * Scale}, ui.Colors.TpBarActive)
+        DrawDot({originX + offsetX + 3 * Scale, originY + 6 * Scale}, ui.Colors.CastingBar)
         offsetX = offsetX + 6 * Scale
     end
 
@@ -254,9 +256,9 @@ local function DrawName(player, isMainPt)
 	--Distance
 	if (player.distance ~= nil and (bit.band(player.renderFlags, 0x200) == 0x200) and (bit.band(player.renderFlags, 0x4000) == 0)) then
 		imgui.SameLine()
-        local xOffset = 150
+        local xOffset = 170
         if (isMainPt) then
-            xOffset = 220
+            xOffset = 215
         end
 
 		imgui.SetCursorPosX(xOffset)
@@ -273,16 +275,8 @@ local function DrawName(player, isMainPt)
         imgui.PopStyleColor()
 	end
 
-    -- we can use the top right corner for more cool stuff, but imgui doesn't do
-    -- right-alignment (as far as i'm aware). again, we must do it ourselves:
-    -- calculate the width of our displayed item, and offset it from the width
-    -- of the window. this probably won't work with a dynamically-sized window.
-    local castbar = AshitaCore:GetMemoryManager():GetCastBar()
-    if player.showCastbar and castbar:GetCount() ~= 0 then
-        imgui.SameLine()
-        imgui.SetCursorPosX((player.windowSize[1] * Scale) - (80 + 10) * Scale)
-        ui.DrawBar2(castbar:GetPercent() * 100, 100, ui.Scale({ 80, 8 }, Scale), '')
-    elseif player.job ~= nil then
+    -- Job/level display
+    if player.job ~= nil then
         local jobStr = ''
         if player.sub ~= nil then
             jobStr = string.format('%s%i/%s%i', player.job, player.jobLevel, player.sub, player.subLevel)
@@ -312,7 +306,7 @@ local function DrawHp(player, isMainPt)
 
     imgui.PushStyleColor(ImGuiCol_Text, textColor)
     imgui.PushStyleColor(ImGuiCol_PlotHistogram, barColor)
-    local barSize = 80
+    local barSize = 90
     if (isMainPt) then
         barSize = 120
     end
@@ -329,9 +323,9 @@ local function DrawMp(player, isMainPt)
     imgui.PushStyleColor(ImGuiCol_Text, textColor)
     imgui.PushStyleColor(ImGuiCol_PlotHistogram, barColor)
     imgui.SameLine()
-    local barSize = 80
+    local barSize = 90
     if (isMainPt) then
-        barSize = 110
+        barSize = 105
     end
     ui.DrawBar2(player.mpp, 100, ui.Scale({ barSize, 15 }, Scale), overlay)
     imgui.PopStyleColor(2)
@@ -339,22 +333,33 @@ end
 
 ---@param player PartyMember
 local function DrawTp(player, isMainPt)
+    local barSize = 115
+    
     local textColor = ui.Colors.White
-    local barColor = ui.Colors.TpBar
-    local overlay = string.format('%i', player.tp)
-
-    if player.tp >= 1000 then
-        barColor = ui.Colors.TpBarActive
-    end
-
     imgui.PushStyleColor(ImGuiCol_Text, textColor)
-    imgui.PushStyleColor(ImGuiCol_PlotHistogram, barColor)
-    imgui.SameLine()
-    local barSize = 80
-    if (isMainPt) then
-        barSize = 110
+
+    local castData = PartyCasts[player.serverId];
+    -- Draw cast bar if applicable
+    if player.showCastbar and castData ~= nil then
+        local elapsed = os.clock() - castData.startTime;
+        local percent = math.min(elapsed / castData.castTime, 1.0);
+
+        imgui.PushStyleColor(ImGuiCol_PlotHistogram, ui.Colors.CastingBar)
+        imgui.SameLine()
+        ui.DrawBar2(percent * 100, 100, ui.Scale({ barSize, 15 }, Scale), castData.spellName);
+    else -- Otherwise draw TP bar
+        local overlay = string.format('%i', player.tp)
+        local barColor = ui.Colors.TpBar
+        if player.tp >= 1000 then
+            barColor = ui.Colors.TpBarActive
+        end
+        
+        imgui.PushStyleColor(ImGuiCol_PlotHistogram, barColor)
+        imgui.SameLine()
+
+        ui.DrawBar2(player.tp, 3000, ui.Scale({ barSize, 15 }, Scale), overlay)
     end
-    ui.DrawBar2(player.tp, 3000, ui.Scale({ barSize, 15 }, Scale), overlay)
+
     imgui.PopStyleColor(2)
 end
 
@@ -447,27 +452,27 @@ end
 local function UpdateAlliances(options)
     Alliances['xitools.us.1'] = {
         GetPlayer:bindn(options),
-        GetMember:bindn(1, options.alliance1),
-        GetMember:bindn(2, options.alliance1),
-        GetMember:bindn(3, options.alliance1),
-        GetMember:bindn(4, options.alliance1),
-        GetMember:bindn(5, options.alliance1),
+        GetMember:bindn(1, options.alliance1, options),
+        GetMember:bindn(2, options.alliance1, options),
+        GetMember:bindn(3, options.alliance1, options),
+        GetMember:bindn(4, options.alliance1, options),
+        GetMember:bindn(5, options.alliance1, options),
     }
     Alliances['xitools.us.2'] = {
-        GetMember:bindn(6, options.alliance2),
-        GetMember:bindn(7, options.alliance2),
-        GetMember:bindn(8, options.alliance2),
-        GetMember:bindn(9, options.alliance2),
-        GetMember:bindn(10, options.alliance2),
-        GetMember:bindn(11, options.alliance2),
+        GetMember:bindn(6, options.alliance2, options),
+        GetMember:bindn(7, options.alliance2, options),
+        GetMember:bindn(8, options.alliance2, options),
+        GetMember:bindn(9, options.alliance2, options),
+        GetMember:bindn(10, options.alliance2, options),
+        GetMember:bindn(11, options.alliance2, options),
     }
     Alliances['xitools.us.3'] = {
-        GetMember:bindn(12, options.alliance3),
-        GetMember:bindn(13, options.alliance3),
-        GetMember:bindn(14, options.alliance3),
-        GetMember:bindn(15, options.alliance3),
-        GetMember:bindn(16, options.alliance3),
-        GetMember:bindn(17, options.alliance3),
+        GetMember:bindn(12, options.alliance3, options),
+        GetMember:bindn(13, options.alliance3, options),
+        GetMember:bindn(14, options.alliance3, options),
+        GetMember:bindn(15, options.alliance3, options),
+        GetMember:bindn(16, options.alliance3, options),
+        GetMember:bindn(17, options.alliance3, options),
     }
 end
 
@@ -493,9 +498,9 @@ local us = {
             isCompact = T{ false },
             isVisible = T{ true },
             name = 'xitools.us.2',
-            fullSize = T{ 276, -1 },
+            fullSize = T{ 311, -1 },
             compactSize = T{ -1, -1 },
-            size = T{ 276, -1 },
+            size = T{ 311, -1 },
             pos = T{ 107, 628 },
             flags = bit.bor(ImGuiWindowFlags_NoDecoration),
         },
@@ -503,9 +508,9 @@ local us = {
             isCompact = T{ false },
             isVisible = T{ true },
             name = 'xitools.us.3',
-            fullSize = T{ 276, -1 },
+            fullSize = T{ 311, -1 },
             compactSize = T{ -1, -1 },
-            size = T{ 276, -1 },
+            size = T{ 311, -1 },
             pos = T{ 000, 628 },
             flags = bit.bor(ImGuiWindowFlags_NoDecoration),
         },
@@ -570,6 +575,60 @@ local us = {
         end
         if alliCount3 > 0 then
             DrawAlliance(options.alliance3, gOptions, false)
+        end
+    end,
+    HandlePacket = function(e, options, gOptions)
+        if e.id ~= packets.inbound.action.id then return end
+            
+        local actionPacket = packets.inbound.action.parse(e.data_raw)
+
+        if (actionPacket == nil or actionPacket.actor_id == nil) then
+            return;
+        end
+
+        -- Type 8 = Magic (Start)
+        if (actionPacket.category == 8) then
+            if (actionPacket.targets and #actionPacket.targets > 0 and
+                actionPacket.targets[1].actions and #actionPacket.targets[1].actions > 0) then
+                local spellId = actionPacket.targets[1].actions[1].param;
+                local existingCast = PartyCasts[actionPacket.actor_id];
+
+                if (existingCast ~= nil and existingCast.spellId == spellId) then
+                    PartyCasts[actionPacket.actor_id] = nil;
+                    return;
+                end
+
+                if (existingCast ~= nil and existingCast.spellId ~= spellId) then
+                    PartyCasts[actionPacket.actor_id] = nil;
+                end
+
+                local spell = AshitaCore:GetResourceManager():GetSpellById(spellId);
+                if (spell ~= nil and spell.Name[1] ~= nil) then
+                    PartyCasts[actionPacket.actor_id] = T{
+                        spellName = spell.Name[1],
+                        spellId = spellId,
+                        spellType = spell.Skill,
+                        castTime = spell.CastTime / 4.0,
+                        startTime = os.clock(),
+                        timestamp = os.time()
+                    };
+                end
+            end
+        -- Type 4 = Magic (Finish), Type 11 = Monster Skill (Finish)
+        elseif (actionPacket.category == 4 or actionPacket.category == 11) then
+            local party = AshitaCore:GetMemoryManager():GetParty()
+            local localPlayerId = party and party:GetMemberServerId(0) or nil;
+            if (actionPacket.actor_id ~= localPlayerId) then
+                PartyCasts[actionPacket.actor_id] = nil;
+            end
+        end
+
+        -- Cleanup stale casts
+        local now = os.time();
+        for serverId, castData in pairs(PartyCasts) do
+            if (castData.timestamp + 30 < now) then
+                PartyCasts[serverId] = nil;
+            end
         end
     end,
 }

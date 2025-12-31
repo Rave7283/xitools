@@ -341,8 +341,14 @@ local function DrawTp(player, isMainPt)
     local castData = PartyCasts[player.serverId];
     -- Draw cast bar if applicable
     if player.showCastbar and castData ~= nil then
+        local fastCastMult = 1;
+        if (player.job == 'RDM') then
+            fastCastMult = 0.6;
+        elseif (player.sub == 'RDM') then
+            fastCastMult = 0.85;
+        end
         local elapsed = os.clock() - castData.startTime;
-        local percent = math.min(elapsed / castData.castTime, 1.0);
+        local percent = math.min(elapsed / (castData.castTime * fastCastMult), 1.0);
 
         imgui.PushStyleColor(ImGuiCol_PlotHistogram, ui.Colors.CastingBar)
         imgui.SameLine()
